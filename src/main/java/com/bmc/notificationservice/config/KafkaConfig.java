@@ -1,19 +1,23 @@
 package com.bmc.notificationservice.config;
 
+import com.bmc.notificationservice.model.Appointment;
 import com.bmc.notificationservice.model.Doctor;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.support.converter.StringJsonMessageConverter;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.handler.annotation.Payload;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,11 +28,14 @@ public class KafkaConfig {
     @Value(value = "${kafka.bootstrap.address}")
     private String bootStrapAddress;
 
-    @Value(value = "${kafka.consumer.groupid}")
-    private String groupId;
+    @Value(value = "${kafka.consumer.doctor.registration.groupid}")
+    private String doctorRegistrationGroupId;
+
+    @Value(value = "${kafka.consumer.appointment.groupid}")
+    private String appointmentConfirmationGroupId;
 
 
-    /*@Bean
+    @Bean
     public ConsumerFactory<String, Doctor> doctorConsumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(
@@ -36,7 +43,7 @@ public class KafkaConfig {
             bootStrapAddress);
         props.put(
             ConsumerConfig.GROUP_ID_CONFIG,
-            groupId);
+            doctorRegistrationGroupId);
         props.put(
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
             StringDeserializer.class);
@@ -59,14 +66,45 @@ public class KafkaConfig {
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(doctorConsumerFactory());
         return factory;
-    }*/
-
-
-    @KafkaListener(topics = "${doctor.registration.notification}", groupId = "${kafka.consumer.groupid}")
-    public void listenGroupFoo(Message<Doctor> message) {
-        System.out.println("Received Message in group foo: " + message.getPayload());
     }
 
+    @Bean
+    public ConsumerFactory<String, Appointment> appointmentConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+            bootStrapAddress);
+        props.put(
+            ConsumerConfig.GROUP_ID_CONFIG,
+            appointmentConfirmationGroupId);
+        props.put(
+            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
+            StringDeserializer.class);
+        props.put(
+            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+            StringDeserializer.class);
+        //StringDeserializer<Appointment> jsonDeserializer = new StringDeserializer<>(Appointment.class);
+        return new DefaultKafkaConsumerFactory<>(props);
+
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Appointment>
+    appointmentKafkaListenerContainerFactory() {
+
+        ConcurrentKafkaListenerContainerFactory<String, Appointment> factory =
+            new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(appointmentConsumerFactory());
+        return factory;
+    }
+
+    @Bean
+    ObjectMapper objectMapper(){
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper;
+    }
 
 
 }
